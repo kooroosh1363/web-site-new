@@ -1,0 +1,14 @@
+{
+  "name": "curio-resource-library",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A fast, accessible, and responsive resource library.",
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check js/app.js && node --check js/catalog.js && node --check js/storage.js && node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
