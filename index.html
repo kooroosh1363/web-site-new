@@ -1,16 +1,129 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-</head>
-<body>
-    <h1>this is my web site </h1>
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Curio is a focused library of useful design, development, learning, and productivity resources.">
+    <meta name="theme-color" content="#f4efe4">
+    <title>Curio — Resource Library</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23242a32'/%3E%3Cpath d='M18 17h28v30H18z' fill='none' stroke='%23f4efe4' stroke-width='4'/%3E%3Cpath d='M25 25h14M25 32h14M25 39h9' stroke='%23d26a46' stroke-width='4'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="css/styles.css">
+    <script type="module" src="js/app.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#library">Skip to library</a>
 
-    <footer>
-        <h6>bye</h6>
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="Curio home">
+        <svg class="brand__mark" aria-hidden="true" viewBox="0 0 48 48">
+          <rect x="8" y="6" width="32" height="36" rx="2"></rect>
+          <path d="M16 16h16M16 24h16M16 32h10"></path>
+        </svg>
+        <span>Curio</span>
+      </a>
+
+      <div class="header-actions">
+        <span class="shortcut-hint" aria-hidden="true"><kbd>/</kbd> to search</span>
+        <button class="icon-button" id="theme-toggle" type="button" aria-label="Switch to dark theme" aria-pressed="false">
+          <svg class="sun-icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"></path></svg>
+          <svg class="moon-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M20.5 15.4A9 9 0 0 1 8.6 3.5a9 9 0 1 0 11.9 11.9Z"></path></svg>
+        </button>
+      </div>
+    </header>
+
+    <main id="library">
+      <section class="intro" aria-labelledby="page-title">
+        <p class="eyebrow">The useful web, carefully filed</p>
+        <div class="intro__row">
+          <h1 id="page-title">Find a better tool<br>for the work at hand.</h1>
+          <p class="intro__copy">A compact collection of trusted resources for making, learning, and getting things done—without the noise.</p>
+        </div>
+      </section>
+
+      <section class="catalog" aria-label="Resource catalog">
+        <div class="catalog__toolbar">
+          <label class="search-field" for="search">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg>
+            <span class="visually-hidden">Search resources</span>
+            <input id="search" type="search" placeholder="Search by name, description, or tag…" autocomplete="off">
+          </label>
+
+          <label class="sort-field" for="sort">
+            <span>Sort</span>
+            <select id="sort">
+              <option value="featured">Curator’s order</option>
+              <option value="name-asc">Name A–Z</option>
+              <option value="name-desc">Name Z–A</option>
+              <option value="newest">Recently added</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="category-bar" aria-label="Filter by category">
+          <div id="category-filters" class="category-list"></div>
+          <button id="bookmarks-filter" class="filter-button filter-button--bookmark" type="button" aria-pressed="false">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4V3Z"></path></svg>
+            Saved <span id="bookmark-count" class="count-badge">0</span>
+          </button>
+        </div>
+
+        <div class="results-meta" aria-live="polite">
+          <p id="result-count">Loading the collection…</p>
+          <button id="clear-filters" class="text-button" type="button" hidden>Clear filters</button>
+        </div>
+
+        <div id="resource-grid" class="resource-grid" aria-busy="true"></div>
+
+        <section id="empty-state" class="empty-state" hidden>
+          <span class="empty-state__index">Ø</span>
+          <h2>No matching cards</h2>
+          <p>Try a broader phrase or clear the current filters.</p>
+          <button class="primary-button" id="empty-clear" type="button">Reset the library</button>
+        </section>
+
+        <section id="error-state" class="empty-state" hidden>
+          <span class="empty-state__index">!</span>
+          <h2>The catalog could not be opened</h2>
+          <p>Check your connection and try loading the collection again.</p>
+          <button class="primary-button" id="retry-load" type="button">Try again</button>
+        </section>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>Curio <span aria-hidden="true">/</span> A quieter way to find useful things.</p>
+      <p id="resource-total"></p>
     </footer>
-</body>
+
+    <dialog id="resource-dialog" class="resource-dialog" aria-labelledby="dialog-title">
+      <button class="dialog-close icon-button" type="button" aria-label="Close details">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"></path></svg>
+      </button>
+      <div id="dialog-content"></div>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <template id="resource-card-template">
+      <article class="resource-card">
+        <div class="resource-card__topline">
+          <span class="resource-card__index"></span>
+          <button class="bookmark-button" type="button">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4V3Z"></path></svg>
+            <span class="visually-hidden"></span>
+          </button>
+        </div>
+        <button class="resource-card__body" type="button">
+          <span class="resource-card__category"></span>
+          <span class="resource-card__title"></span>
+          <span class="resource-card__description"></span>
+          <span class="tag-list"></span>
+        </button>
+        <div class="resource-card__footer">
+          <span class="resource-card__type"></span>
+          <span class="resource-card__arrow" aria-hidden="true">↗</span>
+        </div>
+      </article>
+    </template>
+  </body>
 </html>
