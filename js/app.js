@@ -1,5 +1,7 @@
 import { filterAndSort, getCategories } from "./catalog.js";
+import { assertValidResources } from "./resource-schema.js";
 import { loadBookmarks, loadTheme, saveBookmarks, saveTheme } from "./storage.js";
+import { buildUrlSearch, parseUrlState } from "./url-state.js";
 
 const elements = {
   search: document.querySelector("#search"),
@@ -23,16 +25,14 @@ const elements = {
   toast: document.querySelector("#toast"),
 };
 
-const params = new URLSearchParams(window.location.search);
+const initialUrlState = parseUrlState(window.location.search);
 const state = {
   resources: [],
-  query: params.get("q") ?? "",
-  category: params.get("category") ?? "All",
-  sort: params.get("sort") ?? "featured",
-  savedOnly: params.get("saved") === "true",
+  ...initialUrlState,
   bookmarks: loadBookmarks(),
 };
 
+const systemTheme = window.matchMedia("(prefers-color-scheme: dark)");
 let toastTimer;
 
 function setTheme(theme) {
@@ -46,17 +46,25 @@ function setTheme(theme) {
 function initialTheme() {
   const stored = loadTheme();
   if (stored === "light" || stored === "dark") return stored;
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  return systemTheme.matches ? "dark" : "light";
 }
 
-function syncUrl() {
-  const next = new URLSearchParams();
-  if (state.query) next.set("q", state.query);
-  if (state.category !== "All") next.set("category", state.category);
-  if (state.sort !== "featured") next.set("sort", state.sort);
-  if (state.savedOnly) next.set("saved", "true");
-  const queryString = next.toString();
-  window.history.replaceState({}, "", `${window.location.pathname}${queryString ? `?${queryString}` : ""}`);
+function syncControls() {
+  elements.search.value = state.query;
+  elements.sort.value = state.sort;
+}
+
+function syncUrl(mode = "replace") {
+  const nextUrl = `${window.location.pathname}${buildUrlSearch(state)}${window.location.hash}`;
+  const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+
+  if (nextUrl === currentUrl) return;
+
+  if (mode === "push") {
+    window.history.pushState({}, "", nextUrl);
+  } else {
+    window.history.replaceState({}, "", nextUrl);
+  }
 }
 
 function showToast(message) {
@@ -69,7 +77,10 @@ function showToast(message) {
 function renderCategories() {
   elements.categoryFilters.replaceChildren();
   const categories = getCategories(state.resources);
-  if (!categories.includes(state.category)) state.category = "All";
+
+  if (!categories.includes(state.category)) {
+    state.category = "All";
+  }
 
   categories.forEach((category) => {
     const button = document.createElement("button");
@@ -80,7 +91,7 @@ function renderCategories() {
     button.setAttribute("aria-pressed", String(category === state.category));
     button.addEventListener("click", () => {
       state.category = category;
-      render();
+      render({ history: "push" });
     });
     elements.categoryFilters.append(button);
   });
@@ -97,9 +108,10 @@ function toggleBookmark(resource) {
   const removing = state.bookmarks.has(resource.id);
   if (removing) state.bookmarks.delete(resource.id);
   else state.bookmarks.add(resource.id);
+
   saveBookmarks(state.bookmarks);
   showToast(removing ? `${resource.title} removed from saved` : `${resource.title} saved`);
-  render();
+  render({ history: false });
 }
 
 function openDetails(resource) {
@@ -139,6 +151,7 @@ function openDetails(resource) {
 function makeCard(resource, position) {
   const card = elements.template.content.firstElementChild.cloneNode(true);
   const saved = state.bookmarks.has(resource.id);
+
   card.querySelector(".resource-card__index").textContent = String(position + 1).padStart(2, "0");
   card.querySelector(".resource-card__category").textContent = resource.category;
   card.querySelector(".resource-card__title").textContent = resource.title;
@@ -156,11 +169,13 @@ function makeCard(resource, position) {
 
   const tags = card.querySelector(".tag-list");
   resource.tags.slice(0, 3).forEach((item) => tags.append(makeTag(item)));
+
   return card;
 }
 
-function render() {
+function render({ history = "replace" } = {}) {
   const results = filterAndSort(state.resources, state);
+
   elements.grid.replaceChildren(...results.map(makeCard));
   elements.grid.hidden = results.length === 0;
   elements.grid.setAttribute("aria-busy", "false");
@@ -171,13 +186,18 @@ function render() {
   elements.resultCount.textContent = `${results.length} ${noun} in view`;
   elements.bookmarkCount.textContent = state.bookmarks.size;
   elements.bookmarksFilter.setAttribute("aria-pressed", String(state.savedOnly));
-  elements.clearFilters.hidden = !state.query && state.category === "All" && state.sort === "featured" && !state.savedOnly;
+  elements.clearFilters.hidden =
+    !state.query &&
+    state.category === "All" &&
+    state.sort === "featured" &&
+    !state.savedOnly;
 
   document.querySelectorAll("[data-category]").forEach((button) => {
     button.setAttribute("aria-pressed", String(button.dataset.category === state.category));
   });
 
-  syncUrl();
+  syncControls();
+  if (history) syncUrl(history);
 }
 
 function resetFilters() {
@@ -185,9 +205,20 @@ function resetFilters() {
   state.category = "All";
   state.sort = "featured";
   state.savedOnly = false;
-  elements.search.value = "";
-  elements.sort.value = "featured";
-  render();
+  render({ history: "push" });
+}
+
+function restoreUrlState() {
+  const restored = parseUrlState(window.location.search);
+  state.query = restored.query;
+  state.category = restored.category;
+  state.sort = restored.sort;
+  state.savedOnly = restored.savedOnly;
+
+  const categories = getCategories(state.resources);
+  if (!categories.includes(state.category)) state.category = "All";
+
+  render({ history: false });
 }
 
 async function loadResources() {
@@ -195,47 +226,53 @@ async function loadResources() {
   elements.errorState.hidden = true;
 
   try {
-    const response = await fetch("data/resources.json");
+    const response = await fetch("data/resources.json", { cache: "no-store" });
     if (!response.ok) throw new Error(`Catalog request failed: ${response.status}`);
-    const resources = await response.json();
-    if (!Array.isArray(resources)) throw new TypeError("Catalog must be an array");
+
+    const resources = assertValidResources(await response.json());
     state.resources = resources;
     elements.resourceTotal.textContent = `${resources.length} resources / locally curated`;
+
     renderCategories();
-    render();
+    render({ history: "replace" });
   } catch (error) {
     console.error(error);
     elements.grid.hidden = true;
     elements.emptyState.hidden = true;
     elements.errorState.hidden = false;
     elements.resultCount.textContent = "Catalog unavailable";
+    elements.grid.setAttribute("aria-busy", "false");
   }
 }
 
-elements.search.value = state.query;
-elements.sort.value = ["featured", "name-asc", "name-desc", "newest"].includes(state.sort) ? state.sort : "featured";
-state.sort = elements.sort.value;
+syncControls();
 setTheme(initialTheme());
 
 elements.search.addEventListener("input", (event) => {
-  state.query = event.target.value.trim();
-  render();
+  state.query = event.target.value;
+  render({ history: "replace" });
 });
 
 elements.sort.addEventListener("change", (event) => {
   state.sort = event.target.value;
-  render();
+  render({ history: "push" });
 });
 
 elements.bookmarksFilter.addEventListener("click", () => {
   state.savedOnly = !state.savedOnly;
-  render();
+  render({ history: "push" });
 });
 
 elements.themeToggle.addEventListener("click", () => {
   const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
   setTheme(next);
   saveTheme(next);
+});
+
+systemTheme.addEventListener("change", (event) => {
+  if (loadTheme() === null) {
+    setTheme(event.matches ? "dark" : "light");
+  }
 });
 
 elements.clearFilters.addEventListener("click", resetFilters);
@@ -246,8 +283,16 @@ elements.dialog.addEventListener("click", (event) => {
   if (event.target === elements.dialog) elements.dialog.close();
 });
 
+window.addEventListener("popstate", restoreUrlState);
+
 document.addEventListener("keydown", (event) => {
-  if (event.key === "/" && !["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement.tagName)) {
+  if (
+    event.key === "/" &&
+    !event.metaKey &&
+    !event.ctrlKey &&
+    !event.altKey &&
+    !["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement.tagName)
+  ) {
     event.preventDefault();
     elements.search.focus();
   }

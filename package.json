@@ -1,12 +1,14 @@
 {
   "name": "curio-resource-library",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
-  "description": "A fast, accessible, and responsive resource library.",
+  "description": "A fast, accessible, and resilient browser-native resource library.",
   "scripts": {
     "test": "node --test",
-    "check": "node --check js/app.js && node --check js/catalog.js && node --check js/storage.js && node --test"
+    "validate:data": "node scripts/validate-resources.js",
+    "check:syntax": "node --check js/app.js && node --check js/catalog.js && node --check js/resource-schema.js && node --check js/storage.js && node --check js/url-state.js",
+    "check": "npm run check:syntax && npm run validate:data && npm test"
   },
   "engines": {
     "node": ">=20"

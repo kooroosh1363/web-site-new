@@ -19,5 +19,5 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Check JavaScript and run tests
+      - name: Validate catalog, check JavaScript, and run tests
         run: npm run check
